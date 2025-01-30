@@ -3,6 +3,7 @@
 from pathlib import Path
 from time import sleep
 import sys
+import csv
 import os
 import json
 import re as regex
@@ -100,7 +101,8 @@ def get_affiliations(content:str, client: AzureOpenAI, model: str) -> dict:
     return json.loads(response)
 
 
-def process_file(file: Path, interim_path: Path, output_path:Path, client: AzureOpenAI, notetaking_model: str, interpretation_model: str, worker_executor:ThreadPoolExecutor = None, force_update:bool = False, progress_bar:tqdm = None) -> tuple[bool, str]:
+def process_file(file: Path, interim_path: Path, output_path:Path, client: AzureOpenAI, notetaking_model: str, interpretation_model: str, worker_executor:ThreadPoolExecutor = None, force_update:bool = False, progress_bar:tqdm = None) -> tuple[bool, dict]:
+    metadata = None
     try:
         ## Step 0: Parse the source file
         print(f"[{file.stem}] Processing")
@@ -145,7 +147,7 @@ def process_file(file: Path, interim_path: Path, output_path:Path, client: Azure
         funding_source_file = interim_path / (file.stem + "_funding_source.json")
         affiliations_file = interim_path / (file.stem + "_affiliations.json")
 
-        metadata = None
+        # NB: Metadata defined above the try - to enable the error handling to capture the metadata if it's available
         research_code = None
         funding_source = None
         affiliations = None
@@ -191,27 +193,114 @@ def process_file(file: Path, interim_path: Path, output_path:Path, client: Azure
                     f.write(response)
 
         ## Step 3: Return Table Info
-        table_file = interim_path / (file.stem + "_table_row.md")
-        if force_update or not table_file.exists() or table_file.stat().st_size == 0:
-            print(f"[{file.stem}] Generating Table Row")
-            with open(table_file, "w") as f:
-                response = run_prompt(client, interpretation_model, OUTPUT_PROMPT, "File: " + file.stem + "\n\n" + analysis_content, False)
-                f.write(response)
-        else: 
-            response = table_file.read_text()
-        
-        if response is None or response == "":
-            raise Exception("Failed to generate table row, or the table row file is blank")
-        
-        response = response.replace("\n", " ").replace("|", " | ")
+        data = {}
+        data["file"] = file.stem
+        data["title"] = metadata["title"]
+        data["journal"] = metadata["journal"]
+        data["authors"] = metadata["authors"]
+        data["for_code1"] = {
+            "code": research_code["for"]["for4"]["code"],
+            "categoru": research_code["for"]["for4"]["category"],
+            "description": research_code["for"]["for4"]["description"],
+            "reasoning": research_code["for"]["for4"]["reasoning"]
+        }
+        if "candidates" in research_code:
+            if len(research_code["candidates"]) > 0:
+                candidate = research_code["candidates"][0]
+                if type(candidate) == dict and "for4" in candidate:
+                    data["for_code2"] = {
+                        "code": candidate["for4"]["code"],
+                        "categoru": candidate["for4"]["category"],
+                        "description": candidate["for4"]["description"],
+                        "reasoning": candidate["for4"]["reasoning"]
+                    }
+                elif type(candidate) is str and candidate.isnumeric():
+                    data["for_code2"] = {
+                        "code": candidate,
+                        "categoru": "",
+                        "description": "",
+                        "reasoning": ""
+                    }
+                else: 
+                    data["for_code2"] = {
+                        "code": "",
+                        "categoru": "",
+                        "description": "",
+                        "reasoning": ""
+                    }            
+            if len(research_code["candidates"]) > 1:
+                candidate = research_code["candidates"][1]
+                if type(candidate) == dict and "for4" in candidate:
+                    data["for_code3"] = {
+                        "code": candidate["for4"]["code"],
+                        "categoru": candidate["for4"]["category"],
+                        "description": candidate["for4"]["description"],
+                        "reasoning": candidate["for4"]["reasoning"]
+                    }
+                elif type(candidate) is str and candidate.isnumeric():
+                    data["for_code3"] = {
+                        "code": candidate,
+                        "categoru": "",
+                        "description": "",
+                        "reasoning": ""
+                    }
+                else: 
+                    data["for_code3"] = {
+                        "code": "",
+                        "categoru": "",
+                        "description": "",
+                        "reasoning": ""
+                    }    
+
+            if len(research_code["candidates"]) > 2:
+                candidate = research_code["candidates"][2]
+                if type(candidate) == dict and "for4" in candidate:
+                    data["for_code4"] = {
+                        "code": candidate["for4"]["code"],
+                        "categoru": candidate["for4"]["category"],
+                        "description": candidate["for4"]["description"],
+                        "reasoning": candidate["for4"]["reasoning"]
+                    }
+                elif type(candidate) is str and candidate.isnumeric():
+                    data["for_code4"] = {
+                        "code": candidate,
+                        "categoru": "",
+                        "description": "",
+                        "reasoning": ""
+                    }
+                else: 
+                    data["for_code4"] = {
+                        "code": "",
+                        "categoru": "",
+                        "description": "",
+                        "reasoning": ""
+                    }   
+        data["funding_sources"] = {
+            "sources": funding_source["source"],
+            "reasoning": funding_source["reasoning"]
+        }
+        latrobe_affiliations = [ item for item in affiliations["affiliations"] if item["islatrobe"] == True]
+        non_latrobe_affiliations = [ item for item in affiliations["affiliations"] if item["islatrobe"] == False]
+        data["latrobe_affiliated"] = len(latrobe_affiliations) > 0
+        data["latrobe_affiliations"] = [ { "name": item["name"], "reasoning": item["reasoning"] } for item in latrobe_affiliations ]
+        data["non_latrobe_affiliations"] = [ { "name": item["name"], "reasoning": item["reasoning"] } for item in non_latrobe_affiliations ]
         print(f"[{file.stem}] Done")
-        return (True, response)
-    except Exception as e:
-        print(f"[{file.stem}] Error: {e}")
-        return (False, f"| {file.stem} | FAILED | {e} |  |  |  |  |")
-    finally: 
         if progress_bar is not None:
             progress_bar.update(1)
+        return (True, data)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"[{file.stem}] Error: {e}")
+        if progress_bar is not None:
+            progress_bar.update(1)
+        data = {}
+        data["file"] = file.stem
+        data["title"] = metadata["title"]
+        data["journnal"] = metadata["journal"]
+        data["authors"] = metadata["authors"]
+        data["error"] = f"{e}"
+        return (False, data)
 
 
 
@@ -316,30 +405,64 @@ def main(args: dict[str, str]) -> None:
             if max_files > 0 and len(futures) >= max_files:
                 break
 
-        report_file = output_path / "report.md"
+        report_file = output_path / "report.csv"
         success_count = 0
         failed_count = 0
-        with open(report_file, "w") as f:
-            header_string = """
-| File | Title | Primary FoR Code | Primary FoR Code Name | Reason for Primary FoR Code | Secondary FoR Codes and Names | Funding Sources | Affiliations |  
-|------|-------|------------------|-----------------------|-----------------------------|-------------------------------|-----------------|--------------|"""
-            f.write(header_string + "\n")
+        with open(report_file, "w", newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(["File", "Title", "Journal", "FoR Code 1", "FoR  Code 1 Reasoning", "FoR Code 2", "FoR  Code 2 Reasoning", "FoR Code 3", "FoR  Code 3 Reasoning", "FoR Code 4", "FoR  Code 4 Reasoning", "Funding Sources", "Latrobe Affiliated", "Latrobe Affiliations", "Non-Latrobe Affiliations", "Status", "Error"])
             for future in futures:
                 try:
-                    success, row = future.result()
+                    success, record = future.result()
+                    writer.writerow([
+                        record.get("file", ""),
+                        record.get("title", ""),
+                        record.get("journal", ""),
+                        record.get("for_code1", {}).get("code", ""),
+                        record.get("for_code1", {}).get("reasoning", ""),
+                        record.get("for_code2", {}).get("code", ""),
+                        record.get("for_code2", {}).get("reasoning", ""),
+                        record.get("for_code3", {}).get("code", ""),
+                        record.get("for_code3", {}).get("reasoning", ""),
+                        record.get("for_code4", {}).get("code", ""),
+                        record.get("for_code4", {}).get("reasoning", ""),
+                        record.get("funding_sources", {}).get("sources", ""),
+                        record.get("latrobe_affiliated", ""),
+                        "; ".join([f"{aff['name']}" for aff in record.get("latrobe_affiliations", [])]),
+                        "; ".join([f"{aff['name']}" for aff in record.get("non_latrobe_affiliations", [])]),
+                        "SUCCESS" if success else "FAILED",
+                        record.get("error", "")
+                    ])
+                
                 except Exception as e:
                     success = False
-                    row = f"| {file.stem} | FAILED | {e} |  |  |  |  |"
+                    writer.writerow([
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "FAILED",
+                        f"{e}"
+                    ])
                                           
                 if success:
                     success_count += 1
                 else:
                     failed_count += 1
-                f.write(row + "\n")
+
             progress_bar.close()
-            f.write("\n")
-    
-    print("All Done")
+    print(f"All Done [{success_count} Succeeded, {failed_count} Failed]")
 
 
 def _parse_args() -> dict[str, str]:
