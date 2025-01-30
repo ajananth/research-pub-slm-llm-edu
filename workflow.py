@@ -200,7 +200,7 @@ def process_file(file: Path, interim_path: Path, output_path:Path, client: Azure
         data["authors"] = metadata["authors"]
         data["for_code1"] = {
             "code": research_code["for"]["for4"]["code"],
-            "categoru": research_code["for"]["for4"]["category"],
+            "category": research_code["for"]["for4"]["category"],
             "description": research_code["for"]["for4"]["description"],
             "reasoning": research_code["for"]["for4"]["reasoning"]
         }
@@ -210,21 +210,21 @@ def process_file(file: Path, interim_path: Path, output_path:Path, client: Azure
                 if type(candidate) == dict and "for4" in candidate:
                     data["for_code2"] = {
                         "code": candidate["for4"]["code"],
-                        "categoru": candidate["for4"]["category"],
+                        "category": candidate["for4"]["category"],
                         "description": candidate["for4"]["description"],
                         "reasoning": candidate["for4"]["reasoning"]
                     }
                 elif type(candidate) is str and candidate.isnumeric():
                     data["for_code2"] = {
                         "code": candidate,
-                        "categoru": "",
+                        "category": "",
                         "description": "",
                         "reasoning": ""
                     }
                 else: 
                     data["for_code2"] = {
                         "code": "",
-                        "categoru": "",
+                        "category": "",
                         "description": "",
                         "reasoning": ""
                     }            
@@ -233,21 +233,21 @@ def process_file(file: Path, interim_path: Path, output_path:Path, client: Azure
                 if type(candidate) == dict and "for4" in candidate:
                     data["for_code3"] = {
                         "code": candidate["for4"]["code"],
-                        "categoru": candidate["for4"]["category"],
+                        "category": candidate["for4"]["category"],
                         "description": candidate["for4"]["description"],
                         "reasoning": candidate["for4"]["reasoning"]
                     }
                 elif type(candidate) is str and candidate.isnumeric():
                     data["for_code3"] = {
                         "code": candidate,
-                        "categoru": "",
+                        "category": "",
                         "description": "",
                         "reasoning": ""
                     }
                 else: 
                     data["for_code3"] = {
                         "code": "",
-                        "categoru": "",
+                        "category": "",
                         "description": "",
                         "reasoning": ""
                     }    
@@ -257,21 +257,21 @@ def process_file(file: Path, interim_path: Path, output_path:Path, client: Azure
                 if type(candidate) == dict and "for4" in candidate:
                     data["for_code4"] = {
                         "code": candidate["for4"]["code"],
-                        "categoru": candidate["for4"]["category"],
+                        "category": candidate["for4"]["category"],
                         "description": candidate["for4"]["description"],
                         "reasoning": candidate["for4"]["reasoning"]
                     }
                 elif type(candidate) is str and candidate.isnumeric():
                     data["for_code4"] = {
                         "code": candidate,
-                        "categoru": "",
+                        "category": "",
                         "description": "",
                         "reasoning": ""
                     }
                 else: 
                     data["for_code4"] = {
                         "code": "",
-                        "categoru": "",
+                        "category": "",
                         "description": "",
                         "reasoning": ""
                     }   
@@ -418,13 +418,13 @@ def main(args: dict[str, str]) -> None:
                         record.get("file", ""),
                         record.get("title", ""),
                         record.get("journal", ""),
-                        record.get("for_code1", {}).get("code", ""),
+                        record.get("for_code1", {}).get("code", "") + " " + record.get("for_code1", {}).get("category", ""),
                         record.get("for_code1", {}).get("reasoning", ""),
-                        record.get("for_code2", {}).get("code", ""),
+                        record.get("for_code2", {}).get("code", "") + " " + record.get("for_code2", {}).get("category", ""),
                         record.get("for_code2", {}).get("reasoning", ""),
-                        record.get("for_code3", {}).get("code", ""),
+                        record.get("for_code3", {}).get("code", "") + " " + record.get("for_code3", {}).get("category", ""),
                         record.get("for_code3", {}).get("reasoning", ""),
-                        record.get("for_code4", {}).get("code", ""),
+                        record.get("for_code4", {}).get("code", "") + " " + record.get("for_code4", {}).get("category", ""),
                         record.get("for_code4", {}).get("reasoning", ""),
                         record.get("funding_sources", {}).get("sources", ""),
                         record.get("latrobe_affiliated", ""),
