@@ -2,6 +2,7 @@
 
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
+from time import sleep
 import sys
 import os
 import json
@@ -9,6 +10,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 
 from openai import AzureOpenAI
+from openai.types.shared_params import ResponseFormatJSONObject, ResponseFormatText
 from markitdown import MarkItDown
 
 
@@ -42,6 +44,36 @@ def chunk_file_content(content:str, chunk_size:int=8192, overlap_size:int = 256)
     return chunks
 
 
+def run_prompt(client: AzureOpenAI, model: str, system_prompt:str, user_prompt:str, json_response:bool = False) -> str:
+    retries = 10
+    while retries > 0:
+        try:
+            output_type = { "type": "json_object" } if json_response else { "type": "text" }
+            completion = client.chat.completions.create(
+                model=model,
+                response_format=output_type,
+                messages=[
+                    { "role": "system", "content": system_prompt}, 
+                    {"role": "user", "content": user_prompt}
+                ]
+            )
+            
+            response = completion.choices[0].message.content
+            if response is not None and len(response) > 0:
+                return response
+            retries -= 1
+        except Exception as e:
+            msg = f"{e}"
+            if "429" in msg:
+                sleep(10)
+                retries -= 1
+            else: 
+                retries -= 2
+                sleep(1)
+            if retries <= 0:
+                raise e
+    raise Exception("Failed to get response - too many failed attempts to run prompt")
+
 def parse_file(file: Path) -> str:
     md = MarkItDown()
     result = md.convert(f"{file}")
@@ -49,117 +81,114 @@ def parse_file(file: Path) -> str:
 
 
 def get_metadata(content:str, client: AzureOpenAI, model: str) -> dict:
-    completion = client.chat.completions.create(
-        model=model,
-        messages=[{ "role": "system", "content": METADATA_PROMPT}, {"role": "user", "content": content}]
-    )
-    response = completion.choices[0].message.content
+    response = run_prompt(client, model, METADATA_PROMPT, content, json_response=True)
     return json.loads(response)
 
 def get_research_code(content:str, client: AzureOpenAI, model: str) -> dict:
-    completion = client.chat.completions.create(
-        model=model,
-        messages=[{ "role": "system", "content": FOR_CODE_PROMPT}, {"role": "user", "content": content}]
-    )
-    response = completion.choices[0].message.content
+    response = run_prompt(client, model, FOR_CODE_PROMPT, content, json_response=True)
     return json.loads(response)
 
 def get_funding_source(content:str, client: AzureOpenAI, model: str) -> dict:
-    completion = client.chat.completions.create(
-        model=model,
-        messages=[{ "role": "system", "content": FUNDING_SOURCE_PROMPT}, {"role": "user", "content": content}]
-    )
-    response = completion.choices[0].message.content
+    response = run_prompt(client, model, FUNDING_SOURCE_PROMPT, content, json_response=True)
     return json.loads(response)
 
 def get_affiliations(content:str, client: AzureOpenAI, model: str) -> dict:
-    completion = client.chat.completions.create(
-        model=model,
-        messages=[{ "role": "system", "content": AFFILIATIONS_PROMPT}, {"role": "user", "content": content}]
-    )
-    response = completion.choices[0].message.content
+    response = run_prompt(client, model, AFFILIATIONS_PROMPT, content, json_response=True)
     return json.loads(response)
 
 
-def process_file(file: Path, interim_path: Path, output_path:Path, client: AzureOpenAI, notetaking_model: str, interpretation_model: str, worker_executor:ThreadPoolExecutor = None, force_update:bool = False) -> None:
-    ## Step 0: Parse the source file
-    print(f"[{file.stem}] Processing")
-    interim_file = interim_path / (file.stem + ".md")
-    if force_update or not interim_file.exists():
-        print(f"[{file.stem}] Parsing source")
-        source_md = parse_file(file)
-        with open(interim_file, "w") as f:
-            f.write(source_md.text_content)
+def process_file(file: Path, interim_path: Path, output_path:Path, client: AzureOpenAI, notetaking_model: str, interpretation_model: str, worker_executor:ThreadPoolExecutor = None, force_update:bool = False) -> (bool, str):
+    try:
+        ## Step 0: Parse the source file
+        print(f"[{file.stem}] Processing")
+        interim_file = interim_path / (file.stem + ".md")
+        if force_update or not interim_file.exists():
+            print(f"[{file.stem}] Parsing source")
+            source_md = parse_file(file)
+            with open(interim_file, "w") as f:
+                f.write(source_md.text_content)
 
-    ## Step 1: Generate Notes
-    content = interim_file.read_text()
-    chunks = chunk_file_content(content)
-    notes_file = interim_path / (file.stem + "_notes.md")
-    if force_update or not notes_file.exists():
-        print(f"[{file.stem}] Writing Notes")
+        ## Step 1: Generate Notes
+        content = interim_file.read_text()
+        chunks = chunk_file_content(content)
+        notes_file = interim_path / (file.stem + "_notes.md")
         notes_content = ""
-        with open(notes_file, "w") as f:
-            chunk_num = 0
-            chunk_futures = []
-            for chunk in chunks:
-                chunk_futures.append(worker_executor.submit(client.chat.completions.create, model=interpretation_model, messages=[{ "role": "system", "content": NOTETAKING_PROMPT}, {"role": "user", "content": chunk}]))
-            for chunk_future in chunk_futures:
-                chunk_num += 1
-                completion = chunk_future.result()
-                response = completion.choices[0].message.content
-                f.write(f"# Chunk {chunk_num}\n\n")
-                f.write(f"{response}\n\n")
-                notes_content += f"# Chunk {chunk_num}\n\n{response}\n\n"
+        if force_update or not notes_file.exists():
+            print(f"[{file.stem}] Writing Notes")
+            with open(notes_file, "w") as f:
+                chunk_num = 0
+                chunk_futures = []
+                for chunk in chunks:
+                    chunk_futures.append(worker_executor.submit(run_prompt, client, notetaking_model, NOTETAKING_PROMPT, chunk, False))
+                for chunk_future in chunk_futures:
+                    chunk_num += 1
+                    response = chunk_future.result()
+                    f.write(f"# Chunk {chunk_num}\n\n")
+                    f.write(f"{response}\n\n")
+                    notes_content += f"# Chunk {chunk_num}\n\n{response}\n\n"
+        else: 
+            notes_content = notes_file.read_text()
+            
+        if notes_content == "" or notes_content is None:
+            raise Exception("Failed to generate notes")
         
-    ## Step 2: Determine the Metadata, Research Code, Funding sources, and affiliaitons in the paper
-    metadata_file = interim_path / (file.stem + "_metadata.json")
-    research_code_file = interim_path / (file.stem + "_research_code.json")
-    funding_source_file = interim_path / (file.stem + "_funding_source.json")
-    affiliations_file = interim_path / (file.stem + "_affiliations.json")
+        ## Step 2: Determine the Metadata, Research Code, Funding sources, and affiliaitons in the paper
+        metadata_file = interim_path / (file.stem + "_metadata.json")
+        research_code_file = interim_path / (file.stem + "_research_code.json")
+        funding_source_file = interim_path / (file.stem + "_funding_source.json")
+        affiliations_file = interim_path / (file.stem + "_affiliations.json")
 
-    if force_update or not metadata_file.exists() or not research_code_file.exists() or not funding_source_file.exists() or not affiliations_file.exists():
-        print(f"[{file.stem}] Analysing Notes")
-        metadata_future = worker_executor.submit(get_metadata, notes_content, client, interpretation_model)
-        research_code_future = worker_executor.submit(get_research_code, notes_content, client, interpretation_model)
-        funding_source_future = worker_executor.submit(get_funding_source, notes_content, client, interpretation_model)
-        affiliations_future = worker_executor.submit(get_affiliations, notes_content, client, interpretation_model)
+        metadata = None
+        research_code = None
+        funding_source = None
+        affiliations = None
+        if force_update or not metadata_file.exists() or not research_code_file.exists() or not funding_source_file.exists() or not affiliations_file.exists():
+            print(f"[{file.stem}] Analysing Notes")
+            metadata_future = worker_executor.submit(get_metadata, notes_content, client, interpretation_model)
+            research_code_future = worker_executor.submit(get_research_code, notes_content, client, interpretation_model)
+            funding_source_future = worker_executor.submit(get_funding_source, notes_content, client, interpretation_model)
+            affiliations_future = worker_executor.submit(get_affiliations, notes_content, client, interpretation_model)
 
-        metadata = metadata_future.result()
-        with open(metadata_file, "w") as f:
-            f.write(json.dumps(metadata, indent=2))
+            metadata = metadata_future.result()
+            with open(metadata_file, "w") as f:
+                f.write(json.dumps(metadata, indent=2))
 
-        research_code = research_code_future.result()
-        with open(research_code_file, "w") as f:
-            f.write(json.dumps(research_code, indent=2))
+            research_code = research_code_future.result()
+            with open(research_code_file, "w") as f:
+                f.write(json.dumps(research_code, indent=2))
 
-        funding_source = funding_source_future.result()
-        with open(funding_source_file, "w") as f:
-            f.write(json.dumps(funding_source, indent=2))
+            funding_source = funding_source_future.result()
+            with open(funding_source_file, "w") as f:
+                f.write(json.dumps(funding_source, indent=2))
 
-        affiliations = affiliations_future.result()
-        with open(affiliations_file, "w") as f:
-            f.write(json.dumps(affiliations, indent=2))
+            affiliations = affiliations_future.result()
+            with open(affiliations_file, "w") as f:
+                f.write(json.dumps(affiliations, indent=2))
+        else: 
+            metadata = json.loads(metadata_file.read_text())
+            research_code = json.loads(research_code_file.read_text())
+            funding_source = json.loads(funding_source_file.read_text())
+            affiliations = json.loads(affiliations_file.read_text())
 
-    ## Step 3: Generate Report
-    report_file = output_path / (file.stem + "_report.md")
-    if force_update or not report_file.exists():
-        print(f"[{file.stem}] Generating Report")
+        if metadata is None or research_code is None or funding_source is None or affiliations is None:
+            raise Exception("Failed to generate metadata, research code, funding source, or affiliations, or one of the existing files is blank")
+
+        ## Step 3: Generate Report
+        report_file = output_path / (file.stem + "_report.md")
         analysis_content = f"## Metadata\n\n{json.dumps(metadata, indent=2)}\n\n## Research Code\n\n{json.dumps(research_code, indent=2)}\n\n## Funding Source\n\n{json.dumps(funding_source, indent=2)}\n\n## Affiliations\n\n{json.dumps(affiliations, indent=2)}\n\n"
-        with open(report_file, "w") as f:
-            completion = client.chat.completions.create(
-                model=notetaking_model,
-                messages=[
-                    { "role": "system", "content": REPORT_PROMPT}, 
-                    {"role": "user", "content": analysis_content}
-                    ]
-            )
-            response = completion.choices[0].message.content
-            f.write(response)
+        if force_update or not report_file.exists():
+            print(f"[{file.stem}] Generating Report")
+            with open(report_file, "w") as f:
+                response = run_prompt(client, interpretation_model, REPORT_PROMPT, analysis_content, False)
+                f.write(response)
 
-    ## Step 3: Return Table Info
-
-    
-    print(f"[{file.stem}] Done")        
+        ## Step 3: Return Table Info
+        response = run_prompt(client, interpretation_model, OUTPUT_PROMPT, analysis_content, False)
+        print(f"[{file.stem}] Done")
+        return (True, response)
+    except Exception as e:
+        print(f"[{file.stem}] Error: {e}")
+        return (False, f"| {file.stem} | FAILED | {e} |  |  |  |  |")
 
 
 
@@ -183,10 +212,6 @@ def main(args: dict[str, str]) -> None:
         return
     
 
-              
-
-
-    
     openai_key = args.get("--openai-key", os.getenv("AZURE_OPENAI_API_KEY"))
     if openai_key is None:
         print("Please provide an OpenAI key using the --openai-key flag or in a .env file with the key OPENAI_KEY")
@@ -242,26 +267,42 @@ def main(args: dict[str, str]) -> None:
     if not output_path.exists():
         output_path.mkdir(parents=True, exist_ok=True)
 
-    force_update = args.get("--force-update", os.getenv("FORCE_UPDATE", True))
+    force_update = args.get("--force-update", os.getenv("FORCE_UPDATE", False))
     max_files = int(args.get("--max-files", os.getenv("MAX_FILES", 0)))
 
     supported_file_types = ['.pptx', '.docx', '.pdf', '.jpg', '.jpeg', '.png']
 
     file_concurrency = int(args.get("--concurrency", os.getenv('CONCURRENCY', 4)))
-    worker_concurrency = int(args.get("--workers", os.getenv('WORKERS', 16)))
+    worker_concurrency = int(args.get("--workers", os.getenv('WORKERS', 8)))
+    work_executor = ThreadPoolExecutor(max_workers=worker_concurrency)
     with ThreadPoolExecutor(max_workers=file_concurrency) as files_executor:
         futures = []
-        with ThreadPoolExecutor(max_workers=worker_concurrency) as work_executor:
-            for file in source_path.iterdir():
-                if file.suffix in supported_file_types:
-                    futures.append(files_executor.submit(process_file, file, interim_path, output_path, client, notetaking_model, interpretation_model, work_executor, force_update))
-                if max_files > 0 and len(futures) >= max_files:
-                    break
+        for file in source_path.iterdir():
+            if file.suffix in supported_file_types:
+                futures.append(files_executor.submit(process_file, file, interim_path, output_path, client, notetaking_model, interpretation_model, work_executor, force_update))
+            if max_files > 0 and len(futures) >= max_files:
+                break
+
+        report_file = output_path / "report.md"
+        success_count = 0
+        failed_count = 0
+        with open(report_file, "w") as f:
+            header_string = """
+| Title | Primary FoR Code | Primary FoR Code Name | Reason for Primary FoR Code | Secondary FoR Codes and Names | Funding Sources | Affiliations |  
+|-------|------------------|-----------------------|-----------------------------|-------------------------------|-----------------|--------------|  
+"""
+            f.write(header_string + "\n")
 
             for future in futures:
-                future.result()
-
-
+                success, row = future.result()
+                if success:
+                    success_count += 1
+                else:
+                    failed_count += 1
+                f.write(row + "\n")
+            f.write("\n")
+    
+    print("All Done")
 
 
 def _parse_args() -> dict[str, str]:
