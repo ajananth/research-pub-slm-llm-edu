@@ -8,6 +8,14 @@ elseif (Test-Path -Path .\.conda) {
 }
 else {
     Write-Host "No virtual environment found in the current directory"
+    Write-Host "No virtual environment found in the current directory"
+    Write-Host "" 
+    Write-Host "To create a virtual environment, run the command: python -m venv .venv"
+    Write-Host "To create a conda environment, run the command: conda create --prefix .conda python=3.11"
+    Write-Host ""
+    Write-Host "After creating the virtual environment, run the command: source .venv/bin/activate or source .conda/bin/activate to active the virtual environment, then run the command: pip install -r requirements.txt to install the required packages"
+    Write-Host ""
+    Write-Host "Once your virtual environment has been created, and the required packages have been installed, you can re-run this script"
     exit 1
 }
 

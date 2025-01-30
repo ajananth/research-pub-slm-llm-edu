@@ -231,7 +231,7 @@ def main(args: dict[str, str]) -> None:
         print("--output-dir=<dir> : Output Directory (where the final reports are stored)")
         print("--force-update : Force Updating all files (default: false) - will reprocess all files if set, otherwise will only process files that have not been processed")
         print("--concurrency=<int> : File Concurrency (default: 4) - Number of files to process concurrently")
-        print("--workers=<int> : Worker Concurrency (default: 16) - Number of workers to allocate to performing tasks within the file processed (eg. note taking, analysis, etc...)")
+        print("--workers=<int> : Worker Concurrency (default: 8) - Number of workers to allocate to performing tasks within the file processed (eg. note taking, analysis, etc...)")
         print("--max-files=<int> : Maximum number of files to process (default: 0) - 0 means all files")
         return
     

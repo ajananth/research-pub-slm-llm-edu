@@ -1,11 +1,8 @@
 interim/
 output/
 source/
-*.csv
-*.json
-*.log
-
 .env
+*.env
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
