@@ -81,7 +81,7 @@ def get_affiliations(content:str, client: AzureOpenAI, model: str) -> dict:
     return json.loads(response)
 
 
-def process_file(file: Path, interim_path: Path, client: AzureOpenAI, notetaking_model: str, interpretation_model: str, worker_executor:ThreadPoolExecutor = None, force_update:bool = False) -> None:
+def process_file(file: Path, interim_path: Path, output_path:Path, client: AzureOpenAI, notetaking_model: str, interpretation_model: str, worker_executor:ThreadPoolExecutor = None, force_update:bool = False) -> None:
     ## Step 0: Parse the source file
     print(f"[{file.stem}] Processing")
     interim_file = interim_path / (file.stem + ".md")
@@ -141,7 +141,7 @@ def process_file(file: Path, interim_path: Path, client: AzureOpenAI, notetaking
             f.write(json.dumps(affiliations, indent=2))
 
     ## Step 3: Generate Report
-    report_file = interim_path / (file.stem + "_report.md")
+    report_file = output_path / (file.stem + "_report.md")
     if force_update or not report_file.exists():
         print(f"[{file.stem}] Generating Report")
         analysis_content = f"## Metadata\n\n{json.dumps(metadata, indent=2)}\n\n## Research Code\n\n{json.dumps(research_code, indent=2)}\n\n## Funding Source\n\n{json.dumps(funding_source, indent=2)}\n\n## Affiliations\n\n{json.dumps(affiliations, indent=2)}\n\n"
@@ -179,6 +179,7 @@ def main(args: dict[str, str]) -> None:
         print("--force-update : Force Updating all files (default: false) - will reprocess all files if set, otherwise will only process files that have not been processed")
         print("--concurrency=<int> : File Concurrency (default: 4) - Number of files to process concurrently")
         print("--workers=<int> : Worker Concurrency (default: 16) - Number of workers to allocate to performing tasks within the file processed (eg. note taking, analysis, etc...)")
+        print("--max-files=<int> : Maximum number of files to process (default: 0) - 0 means all files")
         return
     
 
@@ -242,7 +243,8 @@ def main(args: dict[str, str]) -> None:
         output_path.mkdir(parents=True, exist_ok=True)
 
     force_update = args.get("--force-update", os.getenv("FORCE_UPDATE", True))
-    
+    max_files = int(args.get("--max-files", os.getenv("MAX_FILES", 0)))
+
     supported_file_types = ['.pptx', '.docx', '.pdf', '.jpg', '.jpeg', '.png']
 
     file_concurrency = int(args.get("--concurrency", os.getenv('CONCURRENCY', 4)))
@@ -252,8 +254,8 @@ def main(args: dict[str, str]) -> None:
         with ThreadPoolExecutor(max_workers=worker_concurrency) as work_executor:
             for file in source_path.iterdir():
                 if file.suffix in supported_file_types:
-                    futures.append(files_executor.submit(process_file, file, interim_path, client, notetaking_model, interpretation_model, work_executor, force_update))
-                if len(futures) >= 2:
+                    futures.append(files_executor.submit(process_file, file, interim_path, output_path, client, notetaking_model, interpretation_model, work_executor, force_update))
+                if max_files > 0 and len(futures) >= max_files:
                     break
 
             for future in futures:
