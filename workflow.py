@@ -164,6 +164,27 @@ def process_file(file: Path, interim_path: Path, client: AzureOpenAI, notetaking
 
 
 def main(args: dict[str, str]) -> None: 
+
+    if args.get("--help", False):
+        print("Usage: ./workflow.py <args>")
+        print("Arguments:")
+        print("--openai-key=<key> : OpenAI API Key")
+        print("--openai-endpoint=<endpoint> : OpenAI Endpoint")
+        print("--openai-api-version=<version> : OpenAI API Version")
+        print("--notetaking-model=<model> : AI Model deployment to use for the notetaking phase of the process")
+        print("--interpretation-model=<model> : AI Model deployment to use for the interpretation phase of the process")
+        print("--source-dir=<dir> : Source Directory (where the source PDFs are stored)")
+        print("--interim-dir=<dir> : Interim Directory (where the interim files are stored)")
+        print("--output-dir=<dir> : Output Directory (where the final reports are stored)")
+        print("--force-update : Force Updating all files (default: false) - will reprocess all files if set, otherwise will only process files that have not been processed")
+        print("--concurrency=<int> : File Concurrency (default: 4) - Number of files to process concurrently")
+        print("--workers=<int> : Worker Concurrency (default: 16) - Number of workers to allocate to performing tasks within the file processed (eg. note taking, analysis, etc...)")
+        return
+    
+
+              
+
+
     
     openai_key = args.get("--openai-key", os.getenv("AZURE_OPENAI_API_KEY"))
     if openai_key is None:
