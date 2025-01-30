@@ -13,7 +13,7 @@ Your task is to:
 ### Output Format:  
 The output must be a **Markdown-formatted row** for the table, with data separated by vertical bars (`|`). Do not include the header or divider rows. Make sure the row has the following structure:  
   
-| [Title] | [Primary FoR Code] | [Primary FoR Code Name] | [Reason for Primary FoR Code] | [Secondary FoR Codes and Names] | [Funding Sources] | [Affiliations] |  
+| [File] | [Title] | [Primary FoR Code] | [Primary FoR Code Name] | [Reason for Primary FoR Code] | [Secondary FoR Codes and Names] | [Funding Sources] | [Affiliations] |  
   
 ### Additional Notes:  
 1. **Primary FoR Code and Name**:  
@@ -39,6 +39,7 @@ The output must be a **Markdown-formatted row** for the table, with data separat
 ### Example:  
   
 #### Input:  
+- File: "1254.pdf"
 - Title: "Impact of Climate Change on Marine Ecosystems"  
 - Primary FoR Code: 0502 (Environmental Science and Management)  
 - Reason for Primary FoR Code: "The study focuses on managing marine ecosystems under climate change, which aligns with the Environmental Science and Management code."  
@@ -47,5 +48,5 @@ The output must be a **Markdown-formatted row** for the table, with data separat
 - University Affiliations: "Dr. John Smith (La Trobe University, Department of Environmental Sciences)"  
   
 #### Output:  
-| Impact of Climate Change on Marine Ecosystems | 0502 | Environmental Science and Management | The study focuses on managing marine ecosystems under climate change, which aligns with the Environmental Science and Management code. | 0602 (Ecology) | Australian Research Council (ARC Discovery Grant 12345) | Dr. John Smith (La Trobe University, Department of Environmental Sciences) |  
+| 1254.pdf | Impact of Climate Change on Marine Ecosystems | 0502 | Environmental Science and Management | The study focuses on managing marine ecosystems under climate change, which aligns with the Environmental Science and Management code. | 0602 (Ecology) | Australian Research Council (ARC Discovery Grant 12345) | Dr. John Smith (La Trobe University, Department of Environmental Sciences) |  
   

@@ -1,18 +1,17 @@
 #!/usr/bin/env python
 
-from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from time import sleep
 import sys
 import os
 import json
-from concurrent.futures import Future, ThreadPoolExecutor
+import re as regex
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from openai import AzureOpenAI
-from openai.types.shared_params import ResponseFormatJSONObject, ResponseFormatText
 from markitdown import MarkItDown
-
+from tqdm import tqdm
 
 import dotenv
 dotenv.load_dotenv(".env")
@@ -75,9 +74,13 @@ def run_prompt(client: AzureOpenAI, model: str, system_prompt:str, user_prompt:s
     raise Exception("Failed to get response - too many failed attempts to run prompt")
 
 def parse_file(file: Path) -> str:
-    md = MarkItDown()
-    result = md.convert(f"{file}")
-    return result
+    try:
+        md = MarkItDown()
+        result = md.convert(f"{file}")
+        return result.text_content
+    except Exception as e:
+        print(f"[{file.stem}] Failed to parse PDF: {e}")
+        return None
 
 
 def get_metadata(content:str, client: AzureOpenAI, model: str) -> dict:
@@ -97,7 +100,7 @@ def get_affiliations(content:str, client: AzureOpenAI, model: str) -> dict:
     return json.loads(response)
 
 
-def process_file(file: Path, interim_path: Path, output_path:Path, client: AzureOpenAI, notetaking_model: str, interpretation_model: str, worker_executor:ThreadPoolExecutor = None, force_update:bool = False) -> (bool, str):
+def process_file(file: Path, interim_path: Path, output_path:Path, client: AzureOpenAI, notetaking_model: str, interpretation_model: str, worker_executor:ThreadPoolExecutor = None, force_update:bool = False, progress_bar:tqdm = None) -> tuple[bool, str]:
     try:
         ## Step 0: Parse the source file
         print(f"[{file.stem}] Processing")
@@ -105,15 +108,18 @@ def process_file(file: Path, interim_path: Path, output_path:Path, client: Azure
         if force_update or not interim_file.exists():
             print(f"[{file.stem}] Parsing source")
             source_md = parse_file(file)
+            if source_md is None: 
+                raise Exception("Failed to parse source file")
+            
             with open(interim_file, "w") as f:
-                f.write(source_md.text_content)
+                f.write(source_md)
 
         ## Step 1: Generate Notes
         content = interim_file.read_text()
         chunks = chunk_file_content(content)
         notes_file = interim_path / (file.stem + "_notes.md")
         notes_content = ""
-        if force_update or not notes_file.exists():
+        if force_update or not notes_file.exists() or notes_file.stat().st_size == 0:
             print(f"[{file.stem}] Writing Notes")
             with open(notes_file, "w") as f:
                 chunk_num = 0
@@ -129,6 +135,7 @@ def process_file(file: Path, interim_path: Path, output_path:Path, client: Azure
         else: 
             notes_content = notes_file.read_text()
             
+            
         if notes_content == "" or notes_content is None:
             raise Exception("Failed to generate notes")
         
@@ -142,7 +149,7 @@ def process_file(file: Path, interim_path: Path, output_path:Path, client: Azure
         research_code = None
         funding_source = None
         affiliations = None
-        if force_update or not metadata_file.exists() or not research_code_file.exists() or not funding_source_file.exists() or not affiliations_file.exists():
+        if force_update or not metadata_file.exists() or metadata_file.stat().st_size == 0 or not research_code_file.exists() or research_code_file.stat().st_size == 0 or not funding_source_file.exists() or funding_source_file.stat().st_size == 0 or not affiliations_file.exists() or affiliations_file.stat().st_size == 0:
             print(f"[{file.stem}] Analysing Notes")
             metadata_future = worker_executor.submit(get_metadata, notes_content, client, interpretation_model)
             research_code_future = worker_executor.submit(get_research_code, notes_content, client, interpretation_model)
@@ -176,19 +183,35 @@ def process_file(file: Path, interim_path: Path, output_path:Path, client: Azure
         ## Step 3: Generate Report
         report_file = output_path / (file.stem + "_report.md")
         analysis_content = f"## Metadata\n\n{json.dumps(metadata, indent=2)}\n\n## Research Code\n\n{json.dumps(research_code, indent=2)}\n\n## Funding Source\n\n{json.dumps(funding_source, indent=2)}\n\n## Affiliations\n\n{json.dumps(affiliations, indent=2)}\n\n"
-        if force_update or not report_file.exists():
-            print(f"[{file.stem}] Generating Report")
-            with open(report_file, "w") as f:
-                response = run_prompt(client, interpretation_model, REPORT_PROMPT, analysis_content, False)
-                f.write(response)
+        if force_update or not report_file.exists() or report_file.stat().st_size == 0:
+            if force_update or not report_file.exists():
+                print(f"[{file.stem}] Generating Report")
+                with open(report_file, "w") as f:
+                    response = run_prompt(client, interpretation_model, REPORT_PROMPT, analysis_content, False)
+                    f.write(response)
 
         ## Step 3: Return Table Info
-        response = run_prompt(client, interpretation_model, OUTPUT_PROMPT, analysis_content, False)
+        table_file = interim_path / (file.stem + "_table_row.md")
+        if force_update or not table_file.exists() or table_file.stat().st_size == 0:
+            print(f"[{file.stem}] Generating Table Row")
+            with open(table_file, "w") as f:
+                response = run_prompt(client, interpretation_model, OUTPUT_PROMPT, "File: " + file.stem + "\n\n" + analysis_content, False)
+                f.write(response)
+        else: 
+            response = table_file.read_text()
+        
+        if response is None or response == "":
+            raise Exception("Failed to generate table row, or the table row file is blank")
+        
+        response = response.replace("\n", " ").replace("|", " | ")
         print(f"[{file.stem}] Done")
         return (True, response)
     except Exception as e:
         print(f"[{file.stem}] Error: {e}")
         return (False, f"| {file.stem} | FAILED | {e} |  |  |  |  |")
+    finally: 
+        if progress_bar is not None:
+            progress_bar.update(1)
 
 
 
@@ -202,6 +225,7 @@ def main(args: dict[str, str]) -> None:
         print("--openai-api-version=<version> : OpenAI API Version")
         print("--notetaking-model=<model> : AI Model deployment to use for the notetaking phase of the process")
         print("--interpretation-model=<model> : AI Model deployment to use for the interpretation phase of the process")
+        print("--filter=<regex> : Filter files based on a regex pattern")
         print("--source-dir=<dir> : Source Directory (where the source PDFs are stored)")
         print("--interim-dir=<dir> : Interim Directory (where the interim files are stored)")
         print("--output-dir=<dir> : Output Directory (where the final reports are stored)")
@@ -240,7 +264,6 @@ def main(args: dict[str, str]) -> None:
         api_version=openai_api_version,
     )
 
-
     source_dir = args.get("--source-dir", os.getenv("SOURCE_DIR"))
     if source_dir is None:
         source_dir = "source"
@@ -272,14 +295,24 @@ def main(args: dict[str, str]) -> None:
 
     supported_file_types = ['.pptx', '.docx', '.pdf', '.jpg', '.jpeg', '.png']
 
+    filter = args.get("--filter", os.getenv("FILTER", None))
+    if filter is not None:
+        filter = regex.compile(filter)
+
+
     file_concurrency = int(args.get("--concurrency", os.getenv('CONCURRENCY', 4)))
     worker_concurrency = int(args.get("--workers", os.getenv('WORKERS', 8)))
     work_executor = ThreadPoolExecutor(max_workers=worker_concurrency)
+    total_files = len([file for file in source_path.iterdir() if file.suffix in supported_file_types and (filter is None or filter.search(file.stem))])
+    if max_files > 0 and total_files > max_files:
+        total_files = max_files
+
+    progress_bar = tqdm(total=total_files, desc="Processing Files", unit="files")
     with ThreadPoolExecutor(max_workers=file_concurrency) as files_executor:
         futures = []
         for file in source_path.iterdir():
-            if file.suffix in supported_file_types:
-                futures.append(files_executor.submit(process_file, file, interim_path, output_path, client, notetaking_model, interpretation_model, work_executor, force_update))
+            if file.suffix in supported_file_types and (filter is None or filter.search(file.stem)):
+                futures.append(files_executor.submit(process_file, file, interim_path, output_path, client, notetaking_model, interpretation_model, work_executor, force_update, progress_bar))
             if max_files > 0 and len(futures) >= max_files:
                 break
 
@@ -288,18 +321,22 @@ def main(args: dict[str, str]) -> None:
         failed_count = 0
         with open(report_file, "w") as f:
             header_string = """
-| Title | Primary FoR Code | Primary FoR Code Name | Reason for Primary FoR Code | Secondary FoR Codes and Names | Funding Sources | Affiliations |  
-|-------|------------------|-----------------------|-----------------------------|-------------------------------|-----------------|--------------|  
-"""
+| File | Title | Primary FoR Code | Primary FoR Code Name | Reason for Primary FoR Code | Secondary FoR Codes and Names | Funding Sources | Affiliations |  
+|------|-------|------------------|-----------------------|-----------------------------|-------------------------------|-----------------|--------------|"""
             f.write(header_string + "\n")
-
             for future in futures:
-                success, row = future.result()
+                try:
+                    success, row = future.result()
+                except Exception as e:
+                    success = False
+                    row = f"| {file.stem} | FAILED | {e} |  |  |  |  |"
+                                          
                 if success:
                     success_count += 1
                 else:
                     failed_count += 1
                 f.write(row + "\n")
+            progress_bar.close()
             f.write("\n")
     
     print("All Done")

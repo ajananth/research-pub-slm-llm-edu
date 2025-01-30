@@ -3,3 +3,4 @@ ipython
 python-dotenv
 jupyter
 markitdown
+tqdm

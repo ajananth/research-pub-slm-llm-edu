@@ -23,4 +23,3 @@ Please follow the instructions on the [PDF to Markdown Converter](./CONVERT.md)
 ## Run the Analysis Steps
 
 Please follow the instructions on the [Research Paper Analyzer](./ANALYZE.md)
-    
