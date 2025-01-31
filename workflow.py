@@ -463,8 +463,8 @@ def main(args: dict[str, str]) -> None:
                         record.get("for_code4", {}).get("reasoning", ""),
                         record.get("funding_sources", {}).get("sources", ""),
                         record.get("locally_affiliated", ""),
-                        "; ".join([f"{aff['name']} ({aff["reasoning"]})" for aff in record.get("local_affiliations", [])]),
-                        "; ".join([f"{aff['name']} ({aff["reasoning"]})" for aff in record.get("non_local_affiliations", [])]),
+                        "; ".join([f"{aff['name']} ({aff['reasoning']})" for aff in record.get("local_affiliations", [])]),
+                        "; ".join([f"{aff['name']} ({aff['reasoning']})" for aff in record.get("non_local_affiliations", [])]),
                         "SUCCESS" if success else "FAILED",
                         record.get("error", "")
                     ])
