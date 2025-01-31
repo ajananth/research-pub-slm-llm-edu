@@ -234,7 +234,7 @@ def process_file(file: Path, local_university:str, interim_path: Path, output_pa
             if source_md is None: 
                 raise Exception("Failed to parse source file")
             
-            with open(interim_file, "w") as f:
+            with open(interim_file, "w", encoding="UTF-8") as f:
                 f.write(source_md)
 
         ## Step 1: Generate Notes
@@ -244,7 +244,7 @@ def process_file(file: Path, local_university:str, interim_path: Path, output_pa
         notes_content = ""
         if force_update or not notes_file.exists() or notes_file.stat().st_size == 0:
             print(f"[{file.stem}] Writing Notes")
-            with open(notes_file, "w") as f:
+            with open(notes_file, "w", encoding="UTF-8") as f:
                 chunk_num = 0
                 chunk_futures = []
                 for chunk in chunks:
@@ -280,19 +280,19 @@ def process_file(file: Path, local_university:str, interim_path: Path, output_pa
             affiliations_future = worker_executor.submit(get_affiliations, notes_content, client, interpretation_model, local_university)
 
             metadata = metadata_future.result()
-            with open(metadata_file, "w") as f:
+            with open(metadata_file, "w", encoding="UTF-8") as f:
                 f.write(json.dumps(metadata, indent=2))
 
             research_code = research_code_future.result()
-            with open(research_code_file, "w") as f:
+            with open(research_code_file, "w", encoding="UTF-8") as f:
                 f.write(json.dumps(research_code, indent=2))
 
             funding_source = funding_source_future.result()
-            with open(funding_source_file, "w") as f:
+            with open(funding_source_file, "w", encoding="UTF-8") as f:
                 f.write(json.dumps(funding_source, indent=2))
 
             affiliations = affiliations_future.result()
-            with open(affiliations_file, "w") as f:
+            with open(affiliations_file, "w", encoding="UTF-8") as f:
                 f.write(json.dumps(affiliations, indent=2))
         else: 
             metadata = json.loads(metadata_file.read_text())
@@ -309,7 +309,7 @@ def process_file(file: Path, local_university:str, interim_path: Path, output_pa
         if force_update or not report_file.exists() or report_file.stat().st_size == 0:
             if force_update or not report_file.exists():
                 print(f"[{file.stem}] Generating Report")
-                with open(report_file, "w") as f:
+                with open(report_file, "w", encoding="UTF-8") as f:
                     prompt = REPORT_PROMPT.replace("{university}", local_university)
                     response = run_prompt(client, interpretation_model, prompt, analysis_content, False)
                     f.write(response)
@@ -443,7 +443,7 @@ def main(args: dict[str, str]) -> None:
         report_file = output_path / "report.csv"
         success_count = 0
         failed_count = 0
-        with open(report_file, "w", newline='') as f:
+        with open(report_file, "w", newline='', encoding="UTF-8") as f:
             writer = csv.writer(f)
             writer.writerow(["File", "Title", "Journal", "FoR Code 1", "FoR  Code 1 Reasoning", "FoR Code 2", "FoR  Code 2 Reasoning", "FoR Code 3", "FoR  Code 3 Reasoning", "FoR Code 4", "FoR  Code 4 Reasoning", "Funding Sources", f"{local_university} Affiliated", f"{local_university} Affiliations", f"Non-{local_university} Affiliations", "Status", "Error"])
             for future in futures:
