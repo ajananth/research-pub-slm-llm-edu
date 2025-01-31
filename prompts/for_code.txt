@@ -23,7 +23,7 @@ The ANZSRC FoR classification system is hierarchical:
   
 If the research overlaps multiple disciplines, choose the **primary FoR code** that best represents the core focus of the study. Use the content, keywords, and context provided in the notes to guide your classification.  
 
-If the research relates to Indigenous Australians (Australian Aboriginals), then prioritise Field of Research Codes that are specific to Indigenous research. 
+If the research relates to Indigenous Australians (The Aboriginal people and/or Torres Strait Islanders), then always choose first a Field of Research Code that is specific to Indigenous research (eg. 4501 Aboriginal and Torres Strait Islander Peoples Health and Wellbeing).
 
 You must respond with a single JSON documet, using following JSON structure, no other verbage, no markdown, just provide a single JSON document structured in the following way: 
 
