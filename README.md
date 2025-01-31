@@ -46,3 +46,41 @@ Here's a brief overview of the configuration options:
 | `--concurrency`          | `CONCURRENCY`              | 4                  | The number of files to process in parallel                                                          | 
 | `--workers`              | `WORKERS`                  | 8                  | Number of workers to allocate to performing tasks within the file processed                         | 
 
+
+### Filtering
+
+The `--filter` command line argument allows you to control which files should be processed.
+
+The value of the `--filter` argument is expected to be a valid Regular Expression.
+
+Any source file name that matches the Regular Expression at *any* point within the filename will be processed.
+
+For example, if you run the app with the following argument: `--filter="(1234|abcdef|1a2b3c)"` 
+Assuming the following files in the source directory, the following will occur: 
+
+| File         | Will Process |
+|--------------|--------------|
+| abc-123.pdf  | NO           | 
+| abc-1234.pdf | YES          | 
+| 1234-abc.pdf | YES          |
+| abcd.pdf     | NO           | 
+| ttt.pdf      | NO           | 
+| 1a2b3c4d.pdf | YES          | 
+| tt1a2b3c.pdf | YES          | 
+
+
+Any valid regular expression (supported by the Python RE parser) is acceptable.
+
+### Local University
+
+It's important to set the local university either using the command line argument `--local-university` or as an environment variable `LOCAL_UNIVERSITY`.
+
+eg. `./run.sh --local-university="Awesome University"` 
+
+or, in the `.env` file: 
+
+```INI
+LOCAL_UNIVERSITY=Awesome University
+```
+
+This will allow the processor to explicitly look for and associate affiliations with the specified local university.
