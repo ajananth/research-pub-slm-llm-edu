@@ -23,7 +23,6 @@ METADATA_PROMPT = (Path(__file__).parent / "prompts/metadata.txt").read_text()
 FOR_CODE_PROMPT = (Path(__file__).parent / "prompts/for_code.txt").read_text()
 FUNDING_SOURCE_PROMPT = (Path(__file__).parent / "prompts/funding_source.txt").read_text()
 AFFILIATIONS_PROMPT = (Path(__file__).parent / "prompts/affiliations.txt").read_text()
-OUTPUT_PROMPT = (Path(__file__).parent / "prompts/output_table.txt").read_text()
 REPORT_PROMPT = (Path(__file__).parent / "prompts/report.txt").read_text()
 
 def chunk_file_content(content:str, chunk_size:int=8192, overlap_size:int = 256) -> list[str]:
@@ -84,24 +83,146 @@ def parse_file(file: Path) -> str:
         return None
 
 
-def get_metadata(content:str, client: AzureOpenAI, model: str) -> dict:
-    response = run_prompt(client, model, METADATA_PROMPT, content, json_response=True)
+def get_metadata(content:str, client: AzureOpenAI, model: str, local_university:str) -> dict:
+    if local_university is None or local_university == "":
+        local_university = "Not Specified"
+    prompt = METADATA_PROMPT.replace("{university}", local_university)
+    response = run_prompt(client, model, prompt, content, json_response=True)
     return json.loads(response)
 
-def get_research_code(content:str, client: AzureOpenAI, model: str) -> dict:
-    response = run_prompt(client, model, FOR_CODE_PROMPT, content, json_response=True)
+def get_research_code(content:str, client: AzureOpenAI, model: str, local_university:str) -> dict:
+    prompt = FOR_CODE_PROMPT.replace("{university}", local_university)
+    response = run_prompt(client, model, prompt, content, json_response=True)
     return json.loads(response)
 
-def get_funding_source(content:str, client: AzureOpenAI, model: str) -> dict:
-    response = run_prompt(client, model, FUNDING_SOURCE_PROMPT, content, json_response=True)
+def get_funding_source(content:str, client: AzureOpenAI, model: str, local_university:str) -> dict:
+    prompt = FUNDING_SOURCE_PROMPT.replace("{university}", local_university)
+    response = run_prompt(client, model, prompt, content, json_response=True)
     return json.loads(response)
 
-def get_affiliations(content:str, client: AzureOpenAI, model: str) -> dict:
-    response = run_prompt(client, model, AFFILIATIONS_PROMPT, content, json_response=True)
+def get_affiliations(content:str, client: AzureOpenAI, model: str, local_university:str) -> dict:
+    prompt = AFFILIATIONS_PROMPT.replace("{university}", local_university)
+    response = run_prompt(client, model, prompt, content, json_response=True)
     return json.loads(response)
 
+def build_table_output(file:Path, metadata:dict, research_code:dict, funding_source:dict, affiliations:dict, local_university:str):
+    data = {}
+    data["file"] = file.stem
+    data["title"] = metadata["title"]
+    data["journal"] = metadata["journal"]
+    data["authors"] = metadata["authors"]
+    data["for_code1"] = {
+            "code": research_code["for"]["for4"]["code"],
+            "category": research_code["for"]["for4"]["category"],
+            "description": research_code["for"]["for4"]["description"],
+            "reasoning": research_code["for"]["for4"]["reasoning"]
+        }
+    if "candidates" in research_code:
+        if len(research_code["candidates"]) > 0:
+            candidate = research_code["candidates"][0]
+            if type(candidate) == dict and "for4" in candidate:
+                data["for_code2"] = {
+                        "code": candidate["for4"]["code"],
+                        "category": candidate["for4"]["category"],
+                        "description": candidate["for4"]["description"],
+                        "reasoning": candidate["for4"]["reasoning"]
+                    }
+            elif type(candidate) is str and candidate.isnumeric():
+                data["for_code2"] = {
+                        "code": candidate,
+                        "category": "",
+                        "description": "",
+                        "reasoning": ""
+                    }
+            else: 
+                data["for_code2"] = {
+                        "code": "",
+                        "category": "",
+                        "description": "",
+                        "reasoning": ""
+                    }            
+        if len(research_code["candidates"]) > 1:
+            candidate = research_code["candidates"][1]
+            if type(candidate) == dict and "for4" in candidate:
+                data["for_code3"] = {
+                        "code": candidate["for4"]["code"],
+                        "category": candidate["for4"]["category"],
+                        "description": candidate["for4"]["description"],
+                        "reasoning": candidate["for4"]["reasoning"]
+                    }
+            elif type(candidate) is str and candidate.isnumeric():
+                data["for_code3"] = {
+                        "code": candidate,
+                        "category": "",
+                        "description": "",
+                        "reasoning": ""
+                    }
+            else: 
+                data["for_code3"] = {
+                        "code": "",
+                        "category": "",
+                        "description": "",
+                        "reasoning": ""
+                    }    
 
-def process_file(file: Path, interim_path: Path, output_path:Path, client: AzureOpenAI, notetaking_model: str, interpretation_model: str, worker_executor:ThreadPoolExecutor = None, force_update:bool = False, progress_bar:tqdm = None) -> tuple[bool, dict]:
+        if len(research_code["candidates"]) > 2:
+            candidate = research_code["candidates"][2]
+            if type(candidate) == dict and "for4" in candidate:
+                data["for_code4"] = {
+                        "code": candidate["for4"]["code"],
+                        "category": candidate["for4"]["category"],
+                        "description": candidate["for4"]["description"],
+                        "reasoning": candidate["for4"]["reasoning"]
+                    }
+            elif type(candidate) is str and candidate.isnumeric():
+                data["for_code4"] = {
+                        "code": candidate,
+                        "category": "",
+                        "description": "",
+                        "reasoning": ""
+                    }
+            else: 
+                data["for_code4"] = {
+                        "code": "",
+                        "category": "",
+                        "description": "",
+                        "reasoning": ""
+                    }   
+    data["funding_sources"] = {
+            "sources": funding_source["source"],
+            "reasoning": funding_source["reasoning"]
+        }
+    local_affiliations = [ item for item in affiliations["affiliations"] if item["islocal"] == True]
+    non_local_affiliations = [ item for item in affiliations["affiliations"] if item["islocal"] == False]
+    data["locally_affiliated"] = len(local_affiliations) > 0
+    data["local_affiliations"] = [ { "name": item["name"], "reasoning": item["reasoning"] } for item in local_affiliations ]
+    data["non_local_affiliations"] = [ { "name": item["name"], "reasoning": item["reasoning"] } for item in non_local_affiliations ]
+
+    ## De-duplicate the affiliations
+    local_affiliations = {}
+    for item in data["local_affiliations"]:
+        name = item["name"]
+        reasoning = item["reasoning"]
+        if name not in local_affiliations:
+            local_affiliations[name] = reasoning
+        else: 
+            local_affiliations[name] += "; " + reasoning
+    data["local_affiliations"] = [ { "name": name, "reasoning": reasoning } for name, reasoning in local_affiliations.items()]
+
+    non_local_affiliations = {}
+    for item in data["non_local_affiliations"]:
+        name = item["name"]
+        reasoning = item["reasoning"]
+        if name not in non_local_affiliations:
+            non_local_affiliations[name] = reasoning
+        else: 
+            non_local_affiliations[name] += "; " + reasoning
+    data["non_local_affiliations"] = [ { "name": name, "reasoning": reasoning } for name, reasoning in non_local_affiliations.items()]
+
+    return data
+
+
+def process_file(file: Path, local_university:str, interim_path: Path, output_path:Path, client: AzureOpenAI, notetaking_model: str, interpretation_model: str, worker_executor:ThreadPoolExecutor = None, force_update:bool = False, progress_bar:tqdm = None) -> tuple[bool, dict]:
     metadata = None
     try:
         ## Step 0: Parse the source file
@@ -153,10 +274,10 @@ def process_file(file: Path, interim_path: Path, output_path:Path, client: Azure
         affiliations = None
         if force_update or not metadata_file.exists() or metadata_file.stat().st_size == 0 or not research_code_file.exists() or research_code_file.stat().st_size == 0 or not funding_source_file.exists() or funding_source_file.stat().st_size == 0 or not affiliations_file.exists() or affiliations_file.stat().st_size == 0:
             print(f"[{file.stem}] Analysing Notes")
-            metadata_future = worker_executor.submit(get_metadata, notes_content, client, interpretation_model)
-            research_code_future = worker_executor.submit(get_research_code, notes_content, client, interpretation_model)
-            funding_source_future = worker_executor.submit(get_funding_source, notes_content, client, interpretation_model)
-            affiliations_future = worker_executor.submit(get_affiliations, notes_content, client, interpretation_model)
+            metadata_future = worker_executor.submit(get_metadata, notes_content, client, interpretation_model, local_university)
+            research_code_future = worker_executor.submit(get_research_code, notes_content, client, interpretation_model, local_university)
+            funding_source_future = worker_executor.submit(get_funding_source, notes_content, client, interpretation_model, local_university)
+            affiliations_future = worker_executor.submit(get_affiliations, notes_content, client, interpretation_model, local_university)
 
             metadata = metadata_future.result()
             with open(metadata_file, "w") as f:
@@ -189,101 +310,12 @@ def process_file(file: Path, interim_path: Path, output_path:Path, client: Azure
             if force_update or not report_file.exists():
                 print(f"[{file.stem}] Generating Report")
                 with open(report_file, "w") as f:
-                    response = run_prompt(client, interpretation_model, REPORT_PROMPT, analysis_content, False)
+                    prompt = REPORT_PROMPT.replace("{university}", local_university)
+                    response = run_prompt(client, interpretation_model, prompt, analysis_content, False)
                     f.write(response)
 
-        ## Step 3: Return Table Info
-        data = {}
-        data["file"] = file.stem
-        data["title"] = metadata["title"]
-        data["journal"] = metadata["journal"]
-        data["authors"] = metadata["authors"]
-        data["for_code1"] = {
-            "code": research_code["for"]["for4"]["code"],
-            "category": research_code["for"]["for4"]["category"],
-            "description": research_code["for"]["for4"]["description"],
-            "reasoning": research_code["for"]["for4"]["reasoning"]
-        }
-        if "candidates" in research_code:
-            if len(research_code["candidates"]) > 0:
-                candidate = research_code["candidates"][0]
-                if type(candidate) == dict and "for4" in candidate:
-                    data["for_code2"] = {
-                        "code": candidate["for4"]["code"],
-                        "category": candidate["for4"]["category"],
-                        "description": candidate["for4"]["description"],
-                        "reasoning": candidate["for4"]["reasoning"]
-                    }
-                elif type(candidate) is str and candidate.isnumeric():
-                    data["for_code2"] = {
-                        "code": candidate,
-                        "category": "",
-                        "description": "",
-                        "reasoning": ""
-                    }
-                else: 
-                    data["for_code2"] = {
-                        "code": "",
-                        "category": "",
-                        "description": "",
-                        "reasoning": ""
-                    }            
-            if len(research_code["candidates"]) > 1:
-                candidate = research_code["candidates"][1]
-                if type(candidate) == dict and "for4" in candidate:
-                    data["for_code3"] = {
-                        "code": candidate["for4"]["code"],
-                        "category": candidate["for4"]["category"],
-                        "description": candidate["for4"]["description"],
-                        "reasoning": candidate["for4"]["reasoning"]
-                    }
-                elif type(candidate) is str and candidate.isnumeric():
-                    data["for_code3"] = {
-                        "code": candidate,
-                        "category": "",
-                        "description": "",
-                        "reasoning": ""
-                    }
-                else: 
-                    data["for_code3"] = {
-                        "code": "",
-                        "category": "",
-                        "description": "",
-                        "reasoning": ""
-                    }    
-
-            if len(research_code["candidates"]) > 2:
-                candidate = research_code["candidates"][2]
-                if type(candidate) == dict and "for4" in candidate:
-                    data["for_code4"] = {
-                        "code": candidate["for4"]["code"],
-                        "category": candidate["for4"]["category"],
-                        "description": candidate["for4"]["description"],
-                        "reasoning": candidate["for4"]["reasoning"]
-                    }
-                elif type(candidate) is str and candidate.isnumeric():
-                    data["for_code4"] = {
-                        "code": candidate,
-                        "category": "",
-                        "description": "",
-                        "reasoning": ""
-                    }
-                else: 
-                    data["for_code4"] = {
-                        "code": "",
-                        "category": "",
-                        "description": "",
-                        "reasoning": ""
-                    }   
-        data["funding_sources"] = {
-            "sources": funding_source["source"],
-            "reasoning": funding_source["reasoning"]
-        }
-        latrobe_affiliations = [ item for item in affiliations["affiliations"] if item["islatrobe"] == True]
-        non_latrobe_affiliations = [ item for item in affiliations["affiliations"] if item["islatrobe"] == False]
-        data["latrobe_affiliated"] = len(latrobe_affiliations) > 0
-        data["latrobe_affiliations"] = [ { "name": item["name"], "reasoning": item["reasoning"] } for item in latrobe_affiliations ]
-        data["non_latrobe_affiliations"] = [ { "name": item["name"], "reasoning": item["reasoning"] } for item in non_latrobe_affiliations ]
+        ## Step 4: Return Table Info
+        data = build_table_output(file, metadata, research_code, funding_source, affiliations, local_university)
         print(f"[{file.stem}] Done")
         if progress_bar is not None:
             progress_bar.update(1)
@@ -303,7 +335,6 @@ def process_file(file: Path, interim_path: Path, output_path:Path, client: Azure
         return (False, data)
 
 
-
 def main(args: dict[str, str]) -> None: 
 
     if args.get("--help", False):
@@ -314,6 +345,7 @@ def main(args: dict[str, str]) -> None:
         print("--openai-api-version=<version> : OpenAI API Version")
         print("--notetaking-model=<model> : AI Model deployment to use for the notetaking phase of the process")
         print("--interpretation-model=<model> : AI Model deployment to use for the interpretation phase of the process")
+        print("--local-university=<name> : Name of the local university (default: Not Specified)")
         print("--filter=<regex> : Filter files based on a regex pattern")
         print("--source-dir=<dir> : Source Directory (where the source PDFs are stored)")
         print("--interim-dir=<dir> : Interim Directory (where the interim files are stored)")
@@ -396,12 +428,15 @@ def main(args: dict[str, str]) -> None:
     if max_files > 0 and total_files > max_files:
         total_files = max_files
 
+    local_university = args.get("--local-university", os.getenv("LOCAL_UNIVERSITY", "Not Specified"))
+
+
     progress_bar = tqdm(total=total_files, desc="Processing Files", unit="files")
     with ThreadPoolExecutor(max_workers=file_concurrency) as files_executor:
         futures = []
         for file in source_path.iterdir():
             if file.suffix in supported_file_types and (filter is None or filter.search(file.stem)):
-                futures.append(files_executor.submit(process_file, file, interim_path, output_path, client, notetaking_model, interpretation_model, work_executor, force_update, progress_bar))
+                futures.append(files_executor.submit(process_file, file, local_university, interim_path, output_path, client, notetaking_model, interpretation_model, work_executor, force_update, progress_bar))
             if max_files > 0 and len(futures) >= max_files:
                 break
 
@@ -410,7 +445,7 @@ def main(args: dict[str, str]) -> None:
         failed_count = 0
         with open(report_file, "w", newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(["File", "Title", "Journal", "FoR Code 1", "FoR  Code 1 Reasoning", "FoR Code 2", "FoR  Code 2 Reasoning", "FoR Code 3", "FoR  Code 3 Reasoning", "FoR Code 4", "FoR  Code 4 Reasoning", "Funding Sources", "Latrobe Affiliated", "Latrobe Affiliations", "Non-Latrobe Affiliations", "Status", "Error"])
+            writer.writerow(["File", "Title", "Journal", "FoR Code 1", "FoR  Code 1 Reasoning", "FoR Code 2", "FoR  Code 2 Reasoning", "FoR Code 3", "FoR  Code 3 Reasoning", "FoR Code 4", "FoR  Code 4 Reasoning", "Funding Sources", f"{local_university} Affiliated", f"{local_university} Affiliations", f"Non-{local_university} Affiliations", "Status", "Error"])
             for future in futures:
                 try:
                     success, record = future.result()
@@ -427,9 +462,9 @@ def main(args: dict[str, str]) -> None:
                         record.get("for_code4", {}).get("code", "") + " " + record.get("for_code4", {}).get("category", ""),
                         record.get("for_code4", {}).get("reasoning", ""),
                         record.get("funding_sources", {}).get("sources", ""),
-                        record.get("latrobe_affiliated", ""),
-                        "; ".join([f"{aff['name']}" for aff in record.get("latrobe_affiliations", [])]),
-                        "; ".join([f"{aff['name']}" for aff in record.get("non_latrobe_affiliations", [])]),
+                        record.get("locally_affiliated", ""),
+                        "; ".join([f"{aff['name']} ({aff["reasoning"]})" for aff in record.get("local_affiliations", [])]),
+                        "; ".join([f"{aff['name']} ({aff["reasoning"]})" for aff in record.get("non_local_affiliations", [])]),
                         "SUCCESS" if success else "FAILED",
                         record.get("error", "")
                     ])

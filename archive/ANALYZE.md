@@ -119,7 +119,7 @@ The code you are working with is avaiable in [Analyze Research Papers Notebook](
   
     field_of_research_code_system_prompt = {"role": "system", "content": """You are an assistant that reviews research papers and determines their field of research. ..."""}  
     funding_sources_system_prompt = {"role": "system", "content": """You are an AI assistant that reviews research paper notes and detects information on funding. ..."""}  
-    affiliations_system_prompt = {"role": "system", "content": """You are an AI assistant that reviews research paper notes and detects affiliations to La Trobe University. ..."""}  
+    affiliations_system_prompt = {"role": "system", "content": """You are an AI assistant that reviews research paper notes and detects affiliations to the local University. ..."""}  
     csv_friendly_format_system_prompt = {"role": "system", "content": """You are an AI assistant that reviews research paper notes and formats the information into a CSV formatted data. ..."""}  
   
     with open("results.csv", 'w', encoding='utf-8') as file:  

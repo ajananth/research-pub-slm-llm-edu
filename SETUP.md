@@ -27,8 +27,10 @@
 ```sh
 AZURE_OPENAI_API_KEY=your_api_key_here  
 AZURE_OPENAI_ENDPOINT=https://<your_resource_name>.openai.azure.com  
+LOCAL_UNIVERSITY=Name of University
 ```  
 
+Specifying the `LOCAL_UNIVERSITY` enables you to track attributions specifically to the named local university.
 
 ## IDE Setup Instructions for contributing code
 

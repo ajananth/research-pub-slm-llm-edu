@@ -19,18 +19,18 @@ Specify the additional candidate codes, along with an explanation for them being
 Specify the funding sources, along with an explanation for why they were determined to be funding sources
 
 ## Authors and Affiliations
-Indicator of whether or not La Trobe is affiliated with this paper.
+Indicator of whether or not {university} is affiliated with this paper.
 
 List of authors, with their institutions
 
 List of affiliations along with explanations for why these affiliations were determined
 
 ## Summary
-Summary of the paper (if known)
+One or two paragraph summary of the paper (if known)
 
 ## Notable Quotes
-Any notable quotes from the paper
+Notable quotes from the paper
 
 ## Conclusion
 
-Conclusions from the paper and any relevant conclusions from the analysis.
+The Key conclusions from the paper and also any relevant conclusions from the analysis.

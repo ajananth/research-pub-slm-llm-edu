@@ -36,6 +36,7 @@ Here's a brief overview of the configuration options:
 | `--openai-api-version`   | `AZURE_OPENAI_API_VERSION` | 2024-02-15-preview | Specifies the API Version to use                                                                    |
 | `--notetaking-model`     | `NOTETAKING_MODEL`         | gpt-4o-mini        | The name of the model deployment to use for the "Notetaking" portion of the workflow                | 
 | `--interpretation-model` | `INTERPRETATION_MODEL`     | gpt-4o             | The name of the model deployment to use for the interpretation and analysis portion of the workflow |
+| `--local-university`     | `LOCAL_UNIVERSITY`         | <not specified>    | The name of the local university (used when associatiing affiliations to the local university)      | 
 | `--filter`               | `FILTER`                   | <not specified>    | A regex to limit the set of files that will be processed                                            | 
 | `--source-dir`           | `SOURCE_DIR`               | source             | The path to the directory where the source PDF files are to be found                                | 
 | `--interim-dir`          | `INTERIM_DIR`              | interim            | The path to the directory where the interim files (eg. notes) will be written                       |
