@@ -238,7 +238,7 @@ def process_file(file: Path, local_university:str, interim_path: Path, output_pa
                 f.write(source_md)
 
         ## Step 1: Generate Notes
-        content = interim_file.read_text()
+        content = interim_file.read_text(encoding="UTF-8")
         chunks = chunk_file_content(content)
         notes_file = interim_path / (file.stem + "_notes.md")
         notes_content = ""
@@ -256,7 +256,7 @@ def process_file(file: Path, local_university:str, interim_path: Path, output_pa
                     f.write(f"{response}\n\n")
                     notes_content += f"# Chunk {chunk_num}\n\n{response}\n\n"
         else: 
-            notes_content = notes_file.read_text()
+            notes_content = notes_file.read_text(encoding="UTF-8")
             
             
         if notes_content == "" or notes_content is None:
