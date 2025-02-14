@@ -45,6 +45,7 @@ Here's a brief overview of the configuration options:
 | `--max-files`            | `MAX_FILES`                | 0                  | Limits the number of files to be processed (useful for debugging) [0 == No limit]                   | 
 | `--concurrency`          | `CONCURRENCY`              | 4                  | The number of files to process in parallel                                                          | 
 | `--workers`              | `WORKERS`                  | 8                  | Number of workers to allocate to performing tasks within the file processed                         | 
+| `--temperature`          | `TEMPERATURE`              | 0.1                | A value between 0 and 1 to control the creativity of the AI models                                  | 
 
 
 ### Filtering

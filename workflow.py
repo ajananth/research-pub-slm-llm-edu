@@ -43,7 +43,7 @@ def chunk_file_content(content:str, chunk_size:int=8192, overlap_size:int = 256)
     return chunks
 
 
-def run_prompt(client: AzureOpenAI, model: str, system_prompt:str, user_prompt:str, json_response:bool = False) -> str:
+def run_prompt(client: AzureOpenAI, model: str, system_prompt:str, user_prompt:str, temperature:float, json_response:bool = False) -> str:
     retries = 10
     while retries > 0:
         try:
@@ -51,6 +51,7 @@ def run_prompt(client: AzureOpenAI, model: str, system_prompt:str, user_prompt:s
             completion = client.chat.completions.create(
                 model=model,
                 response_format=output_type,
+                temperature=temperature,
                 messages=[
                     { "role": "system", "content": system_prompt}, 
                     {"role": "user", "content": user_prompt}
@@ -83,26 +84,26 @@ def parse_file(file: Path) -> str:
         return None
 
 
-def get_metadata(content:str, client: AzureOpenAI, model: str, local_university:str) -> dict:
+def get_metadata(content:str, client: AzureOpenAI, model: str, local_university:str, temperature:float) -> dict:
     if local_university is None or local_university == "":
         local_university = "Not Specified"
     prompt = METADATA_PROMPT.replace("{university}", local_university)
-    response = run_prompt(client, model, prompt, content, json_response=True)
+    response = run_prompt(client, model, prompt, content, temperature, json_response=True)
     return json.loads(response)
 
-def get_research_code(content:str, client: AzureOpenAI, model: str, local_university:str) -> dict:
+def get_research_code(content:str, client: AzureOpenAI, model: str, local_university:str, temperature:float) -> dict:
     prompt = FOR_CODE_PROMPT.replace("{university}", local_university)
-    response = run_prompt(client, model, prompt, content, json_response=True)
+    response = run_prompt(client, model, prompt, content, temperature, json_response=True)
     return json.loads(response)
 
-def get_funding_source(content:str, client: AzureOpenAI, model: str, local_university:str) -> dict:
+def get_funding_source(content:str, client: AzureOpenAI, model: str, local_university:str, temperature:float) -> dict:
     prompt = FUNDING_SOURCE_PROMPT.replace("{university}", local_university)
-    response = run_prompt(client, model, prompt, content, json_response=True)
+    response = run_prompt(client, model, prompt, content, temperature, json_response=True)
     return json.loads(response)
 
-def get_affiliations(content:str, client: AzureOpenAI, model: str, local_university:str) -> dict:
+def get_affiliations(content:str, client: AzureOpenAI, model: str, local_university:str, temperature:float) -> dict:
     prompt = AFFILIATIONS_PROMPT.replace("{university}", local_university)
-    response = run_prompt(client, model, prompt, content, json_response=True)
+    response = run_prompt(client, model, prompt, content, temperature, json_response=True)
     return json.loads(response)
 
 def build_table_output(file:Path, metadata:dict, research_code:dict, funding_source:dict, affiliations:dict, local_university:str):
@@ -222,7 +223,7 @@ def build_table_output(file:Path, metadata:dict, research_code:dict, funding_sou
     return data
 
 
-def process_file(file: Path, local_university:str, interim_path: Path, output_path:Path, client: AzureOpenAI, notetaking_model: str, interpretation_model: str, worker_executor:ThreadPoolExecutor = None, force_update:bool = False, progress_bar:tqdm = None) -> tuple[bool, dict]:
+def process_file(file: Path, local_university:str, interim_path: Path, output_path:Path, client: AzureOpenAI, notetaking_model: str, interpretation_model: str, temperature:float, worker_executor:ThreadPoolExecutor = None, force_update:bool = False, progress_bar:tqdm = None) -> tuple[bool, dict]:
     metadata = None
     try:
         ## Step 0: Parse the source file
@@ -248,7 +249,7 @@ def process_file(file: Path, local_university:str, interim_path: Path, output_pa
                 chunk_num = 0
                 chunk_futures = []
                 for chunk in chunks:
-                    chunk_futures.append(worker_executor.submit(run_prompt, client, notetaking_model, NOTETAKING_PROMPT, chunk, False))
+                    chunk_futures.append(worker_executor.submit(run_prompt, client, notetaking_model, NOTETAKING_PROMPT, chunk, temperature, False))
                 for chunk_future in chunk_futures:
                     chunk_num += 1
                     response = chunk_future.result()
@@ -274,10 +275,10 @@ def process_file(file: Path, local_university:str, interim_path: Path, output_pa
         affiliations = None
         if force_update or not metadata_file.exists() or metadata_file.stat().st_size == 0 or not research_code_file.exists() or research_code_file.stat().st_size == 0 or not funding_source_file.exists() or funding_source_file.stat().st_size == 0 or not affiliations_file.exists() or affiliations_file.stat().st_size == 0:
             print(f"[{file.stem}] Analysing Notes")
-            metadata_future = worker_executor.submit(get_metadata, notes_content, client, interpretation_model, local_university)
-            research_code_future = worker_executor.submit(get_research_code, notes_content, client, interpretation_model, local_university)
-            funding_source_future = worker_executor.submit(get_funding_source, notes_content, client, interpretation_model, local_university)
-            affiliations_future = worker_executor.submit(get_affiliations, notes_content, client, interpretation_model, local_university)
+            metadata_future = worker_executor.submit(get_metadata, notes_content, client, interpretation_model, local_university, temperature)
+            research_code_future = worker_executor.submit(get_research_code, notes_content, client, interpretation_model, local_university, temperature)
+            funding_source_future = worker_executor.submit(get_funding_source, notes_content, client, interpretation_model, local_university, temperature)
+            affiliations_future = worker_executor.submit(get_affiliations, notes_content, client, interpretation_model, local_university, temperature)
 
             metadata = metadata_future.result()
             with open(metadata_file, "w", encoding="UTF-8") as f:
@@ -311,7 +312,7 @@ def process_file(file: Path, local_university:str, interim_path: Path, output_pa
                 print(f"[{file.stem}] Generating Report")
                 with open(report_file, "w", encoding="UTF-8") as f:
                     prompt = REPORT_PROMPT.replace("{university}", local_university)
-                    response = run_prompt(client, interpretation_model, prompt, analysis_content, False)
+                    response = run_prompt(client, interpretation_model, prompt, analysis_content, temperature, False)
                     f.write(response)
 
         ## Step 4: Return Table Info
@@ -354,6 +355,7 @@ def main(args: dict[str, str]) -> None:
         print("--concurrency=<int> : File Concurrency (default: 4) - Number of files to process concurrently")
         print("--workers=<int> : Worker Concurrency (default: 8) - Number of workers to allocate to performing tasks within the file processed (eg. note taking, analysis, etc...)")
         print("--max-files=<int> : Maximum number of files to process (default: 0) - 0 means all files")
+        print("--temperature=<float> : A value between 0 and 1 to control the creativity of the AI models (default: 0.1) - Low values offer less variability")
         return
     
 
@@ -430,13 +432,14 @@ def main(args: dict[str, str]) -> None:
 
     local_university = args.get("--local-university", os.getenv("LOCAL_UNIVERSITY", "Not Specified"))
 
+    temperature = float(args.get("--temperature", os.getenv("TEMPERATURE", 0.1)))
 
     progress_bar = tqdm(total=total_files, desc="Processing Files", unit="files")
     with ThreadPoolExecutor(max_workers=file_concurrency) as files_executor:
         futures = []
         for file in source_path.iterdir():
             if file.suffix in supported_file_types and (filter is None or filter.search(file.stem)):
-                futures.append(files_executor.submit(process_file, file, local_university, interim_path, output_path, client, notetaking_model, interpretation_model, work_executor, force_update, progress_bar))
+                futures.append(files_executor.submit(process_file, file, local_university, interim_path, output_path, client, notetaking_model, interpretation_model, temperature, work_executor, force_update, progress_bar))
             if max_files > 0 and len(futures) >= max_files:
                 break
 
