@@ -1,9 +1,11 @@
-# AzureOpenAI-ResearchPaperAnalyzer  
-  
+# Multi-Agent Pattern for Research Publication Analysis  
+
 ## Overview  
-  
-The **AzureOpenAI-ResearchPaperAnalyzer** project is designed to facilitate the analysis of research papers using the powerful capabilities of Azure OpenAI. 
-The primary objective of this project is to automate the extraction and categorization of key insights from research papers written in markdown format. 
+
+![alt text](image.png)
+
+This pattern is designed to facilitate the analysis of research papers using the powerful capabilities of Azure OpenAI. 
+The primary objective of this pattern is to automate the extraction and categorization of key insights from research papers written in markdown format. 
 By leveraging Azure OpenAI's advanced natural language processing abilities, the script can:
   
 - Parse PDF documents into markdown format
@@ -13,7 +15,7 @@ By leveraging Azure OpenAI's advanced natural language processing abilities, the
 - Format and save the results into a 1-page Markdown report (documenting notes + analysis along the way).
 - Collate and save the summarised results into a single Markdown table for easy review across papers.
   
-This tool aims to save researchers significant time and effort by automating the tedious process of reading and summarizing lengthy research papers, allowing them to focus more on the critical aspects of their work.  
+This pattern aims to save researchers significant time and effort by automating the tedious process of reading and summarizing lengthy research papers, allowing them to focus more on the critical aspects of their work.  
 
 ## Getting Started
 
