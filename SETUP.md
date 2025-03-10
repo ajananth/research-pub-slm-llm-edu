@@ -2,8 +2,8 @@
   
 1. **Clone the repository**  
     ```sh  
-    git clone https://github.com/your-username/AzureOpenAI-ResearchPaperAnalyzer.git  
-    cd AzureOpenAI-ResearchPaperAnalyzer  
+    git clone https://github.com/your-username/research-pub-slm-llm-edu.git  
+    cd research-pub-slm-llm-edu  
     ```  
   
 2. **Install and Configure a virtual python environment**  
@@ -42,7 +42,7 @@ If you plan on writing code and contributing to this repo, then install an IDE l
   
 2. **Open the Project in Visual Studio Code**  
     - Open Visual Studio Code.  
-    - Click on `File > Open Folder` and select the `AzureOpenAI-ResearchPaperAnalyzer` folder.
+    - Click on `File > Open Folder` and select the `research-pub-slm-llm-edu` folder.
   
 3. **Set Up a Conda Environment in Visual Studio Code**  
     - Open the Command Palette by pressing `Ctrl+Shift+P` (Windows/Linux) or `Cmd+Shift+P` (Mac).  
